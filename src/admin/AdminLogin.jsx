@@ -3,8 +3,8 @@ import { useAdmin } from './AdminContext.jsx';
 
 export default function AdminLogin() {
   const { login, navigate } = useAdmin();
-  const [email, setEmail] = useState('admin@stringart.io');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -67,7 +67,7 @@ export default function AdminLogin() {
               className="admin-input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@stringart.io"
+              placeholder="Enter your admin email"
               autoComplete="email"
               required
               disabled={isSubmitting}
@@ -91,11 +91,6 @@ export default function AdminLogin() {
               required
               disabled={isSubmitting}
             />
-          </div>
-
-          <div className="admin-credentials-hint">
-            <span className="hint-badge">Default Credentials</span>
-            <code>admin@stringart.io</code> &bull; <code>admin123</code>
           </div>
 
           <button

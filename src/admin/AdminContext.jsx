@@ -3,19 +3,8 @@ import { getApiUrl } from '../config/api.js';
 
 const AdminContext = createContext(null);
 
-const STORAGE_KEY = 'sa_admin_token';
-const USER_KEY = 'sa_admin_user';
-
 export function AdminProvider({ children }) {
-  const [token, setToken] = useState(() => localStorage.getItem(STORAGE_KEY) || '');
-  const [admin, setAdmin] = useState(() => {
-    try {
-      const saved = localStorage.getItem(USER_KEY);
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [admin, setAdmin] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
@@ -36,37 +25,27 @@ export function AdminProvider({ children }) {
     }
   }, []);
 
-  // Verify token on mount
+  // Check authentication status on mount via HttpOnly cookie
   useEffect(() => {
     let isMounted = true;
     async function checkAuth() {
-      if (!token) {
-        setIsLoading(false);
-        return;
-      }
       try {
         const res = await fetch(getApiUrl('/api/admin/me'), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          credentials: 'include',
         });
         if (res.ok) {
           const data = await res.json();
           if (isMounted) {
             setAdmin(data.admin);
-            localStorage.setItem(USER_KEY, JSON.stringify(data.admin));
           }
         } else {
-          // Token expired or invalid
           if (isMounted) {
-            setToken('');
             setAdmin(null);
-            localStorage.removeItem(STORAGE_KEY);
-            localStorage.removeItem(USER_KEY);
           }
         }
       } catch (err) {
         console.error('Admin auth check failed:', err);
+        if (isMounted) setAdmin(null);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -75,11 +54,13 @@ export function AdminProvider({ children }) {
     return () => {
       isMounted = false;
     };
-  }, [token]);
+  }, []);
 
+  // Login: sends email and password, server sets HttpOnly JWT cookie
   const login = useCallback(async (email, password) => {
     const res = await fetch(getApiUrl('/api/admin/login'), {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
@@ -89,59 +70,50 @@ export function AdminProvider({ children }) {
       throw new Error(data.error || 'Login failed');
     }
 
-    setToken(data.token);
     setAdmin(data.admin);
-    localStorage.setItem(STORAGE_KEY, data.token);
-    localStorage.setItem(USER_KEY, JSON.stringify(data.admin));
     return data;
   }, []);
 
+  // Logout: server clears HttpOnly JWT cookie
   const logout = useCallback(async () => {
     try {
-      if (token) {
-        await fetch(getApiUrl('/api/admin/logout'), {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
+      await fetch(getApiUrl('/api/admin/logout'), {
+        method: 'POST',
+        credentials: 'include',
+      });
     } catch (err) {
       console.warn('Logout notification error:', err);
     } finally {
-      setToken('');
       setAdmin(null);
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(USER_KEY);
       navigate('/admin/login');
     }
-  }, [token, navigate]);
+  }, [navigate]);
 
+  // Authenticated fetch helper: automatically includes HttpOnly credentials
   const authFetch = useCallback(
     async (url, options = {}) => {
-      const headers = {
-        ...(options.headers || {}),
-        Authorization: `Bearer ${token}`,
-      };
-
       const targetUrl = getApiUrl(url);
-      const res = await fetch(targetUrl, { ...options, headers });
+      const res = await fetch(targetUrl, {
+        ...options,
+        credentials: 'include',
+        headers: {
+          ...(options.headers || {}),
+        },
+      });
+
       if (res.status === 401) {
-        // Force logout on 401 Unauthorized
-        setToken('');
         setAdmin(null);
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(USER_KEY);
         navigate('/admin/login');
         throw new Error('Session expired. Please log in again.');
       }
       return res;
     },
-    [token, navigate]
+    [navigate]
   );
 
   const value = {
-    token,
     admin,
-    isAuthenticated: Boolean(token),
+    isAuthenticated: Boolean(admin),
     isLoading,
     currentPath,
     navigate,

@@ -19,7 +19,7 @@ const PAYMENT_STATUS_OPTIONS = [
 ];
 
 export default function AdminOrderDetail({ orderId }) {
-  const { authFetch, navigate, token } = useAdmin();
+  const { authFetch, navigate } = useAdmin();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -152,15 +152,24 @@ export default function AdminOrderDetail({ orderId }) {
     return getDataUrl(filePath);
   };
 
-  // Helper to trigger direct sequence download
-  const handleDownloadSequence = () => {
-    const downloadUrl = getApiUrl(`/api/admin/orders/${orderId}/sequence?token=${encodeURIComponent(token)}`);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = `${orderId}-sequence.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  // Helper to trigger direct sequence download with cookie auth
+  const handleDownloadSequence = async () => {
+    try {
+      const res = await authFetch(`/api/admin/orders/${orderId}/sequence`);
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${orderId}-sequence.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download sequence:', err);
+      alert('Could not download sequence file. Please try again.');
+    }
   };
 
   if (loading) {
