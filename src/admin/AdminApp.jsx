@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { AdminProvider, useAdmin } from './AdminContext.jsx';
 import AdminLogin from './AdminLogin.jsx';
+import AdminForgotPassword from './AdminForgotPassword.jsx';
+import AdminResetPassword from './AdminResetPassword.jsx';
 import AdminLayout from './AdminLayout.jsx';
 import AdminDashboard from './AdminDashboard.jsx';
 import AdminOrders from './AdminOrders.jsx';
@@ -21,16 +23,28 @@ function AdminRouter() {
     );
   }
 
-  // If unauthenticated: only allow /admin/login
+  const pathname = currentPath.split('?')[0];
+
+  // If unauthenticated: allow login, forgot-password, and reset-password
   if (!isAuthenticated) {
-    if (currentPath !== '/admin/login') {
+    if (pathname === '/admin/forgot-password') {
+      return <AdminForgotPassword />;
+    }
+    if (pathname === '/admin/reset-password') {
+      return <AdminResetPassword />;
+    }
+    if (pathname !== '/admin/login') {
       navigate('/admin/login');
     }
     return <AdminLogin />;
   }
 
-  // If authenticated and user visits /admin/login, redirect to /admin
-  if (currentPath === '/admin/login') {
+  // If authenticated and user visits any auth pages, redirect to /admin
+  if (
+    pathname === '/admin/login' ||
+    pathname === '/admin/forgot-password' ||
+    pathname === '/admin/reset-password'
+  ) {
     navigate('/admin');
     return null;
   }

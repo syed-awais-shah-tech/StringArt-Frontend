@@ -79,6 +79,16 @@ export default function AdminLogin() {
               <label htmlFor="admin-password" className="admin-label">
                 Password
               </label>
+              <a
+                href="/admin/forgot-password"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate('/admin/forgot-password');
+                }}
+                className="admin-forgot-link"
+              >
+                Forgot password?
+              </a>
             </div>
             <input
               id="admin-password"

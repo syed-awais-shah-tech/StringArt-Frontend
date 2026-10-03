@@ -6,19 +6,19 @@ const AdminContext = createContext(null);
 export function AdminProvider({ children }) {
   const [admin, setAdmin] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  const [currentPath, setCurrentPath] = useState(window.location.pathname + window.location.search);
 
   // Sync route on popstate (browser back/forward)
   useEffect(() => {
     const handlePop = () => {
-      setCurrentPath(window.location.pathname);
+      setCurrentPath(window.location.pathname + window.location.search);
     };
     window.addEventListener('popstate', handlePop);
     return () => window.removeEventListener('popstate', handlePop);
   }, []);
 
   const navigate = useCallback((path) => {
-    if (window.location.pathname !== path) {
+    if (window.location.pathname + window.location.search !== path) {
       window.history.pushState(null, '', path);
       setCurrentPath(path);
       window.scrollTo(0, 0);

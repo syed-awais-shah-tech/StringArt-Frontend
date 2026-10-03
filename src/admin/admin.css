@@ -1389,26 +1389,47 @@
   gap: 18px;
 }
 
-.admin-credentials-hint {
-  padding: 10px 12px;
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
-  border-radius: 8px;
-  font-size: 12px;
-  color: #475569;
+.admin-label-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  margin-bottom: 6px;
 }
-.hint-badge {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  background: #e2e8f0;
-  color: #334155;
-  padding: 2px 6px;
-  border-radius: 4px;
+
+.admin-forgot-link {
+  font-size: 12.5px;
+  color: #008060;
+  text-decoration: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.admin-forgot-link:hover {
+  color: #004c3f;
+  text-decoration: underline;
+}
+
+.admin-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+
+.admin-alert-danger {
+  background-color: #fef2f2;
+  border: 1px solid #fee2e2;
+  color: #b91c1c;
+}
+
+.admin-alert-success {
+  background-color: #f0fdf4;
+  border: 1px solid #dcfce7;
+  color: #15803d;
 }
 
 .admin-login-footer {
