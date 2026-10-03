@@ -3,6 +3,7 @@ import CompareSlider from './CompareSlider.jsx';
 import CanvasPreview from './CanvasPreview.jsx';
 import OrderForm from './OrderForm.jsx';
 import OrderSuccess from './OrderSuccess.jsx';
+import { validateImageFile } from '../utils/validation.js';
 
 /**
  * HeroGenerator.jsx
@@ -27,17 +28,20 @@ export default function HeroGenerator({
   submittedOrder,
   isSubmittingOrder,
   submitOrderError,
+  cooldownSeconds = 0,
+  isGenerating = false,
   startOrder,
   backToPreview,
   submitOrder,
 }) {
   const fileInputRef = useRef(null);
 
-  const isRunning = status === 'running';
+  const isRunning = status === 'running' || isGenerating;
   const isDone = status === 'done' && previewData;
 
   // Helper to load sample image directly into engine
   const handleLoadSample = async (type = 'portrait') => {
+    if (isRunning) return;
     try {
       const src = type === 'dog' ? '/gallery/dog_original.jpg' : '/gallery/input.png';
       const filename = type === 'dog' ? 'golden-retriever-sample.jpg' : 'portrait-sample.png';
@@ -57,6 +61,14 @@ export default function HeroGenerator({
   const handleFileInput = (e) => {
     const file = e.target.files?.[0];
     if (file) {
+      const check = validateImageFile(file);
+      if (!check.valid) {
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        if (uploadAndGenerate) {
+          uploadAndGenerate(file); // This will set the error in useStringArt
+        }
+        return;
+      }
       if (uploadAndGenerate) {
         uploadAndGenerate(file);
       } else {
@@ -67,8 +79,9 @@ export default function HeroGenerator({
 
   const handleDrop = (e) => {
     e.preventDefault();
+    if (isRunning) return;
     const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith('image/')) {
+    if (file) {
       if (uploadAndGenerate) {
         uploadAndGenerate(file);
       } else {
@@ -285,7 +298,7 @@ export default function HeroGenerator({
                       </div>
                       <span className="upload-main-text">Upload your photo</span>
                       <span className="upload-sub-text">
-                        Drag & drop or click to choose · JPG, PNG, WEBP
+                        Drag & drop or click to choose · JPG, PNG, WEBP (Max 10MB)
                       </span>
                     </label>
 
@@ -297,6 +310,7 @@ export default function HeroGenerator({
                           type="button"
                           className="btn-sample"
                           onClick={() => handleLoadSample('dog')}
+                          disabled={isRunning}
                         >
                           <img
                             src="/gallery/dog_original.jpg"
@@ -309,6 +323,7 @@ export default function HeroGenerator({
                           type="button"
                           className="btn-sample"
                           onClick={() => handleLoadSample('portrait')}
+                          disabled={isRunning}
                         >
                           <img
                             src="/gallery/input.png"
@@ -366,16 +381,16 @@ export default function HeroGenerator({
                   <div className="generating-action-row">
                     <button
                       type="button"
-                      className="btn btn-secondary-light btn-sm"
+                      className="btn btn-secondary-light btn-sm btn-cancel-generate"
                       onClick={cancel}
                     >
-                      Cancel
+                      Cancel Request
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* STATE 2.1: Cancelled fallback (image present, not running, no result) */}
+              {/* STATE 2.1: Image Selected & Ready to Generate */}
               {imageFile && !isRunning && !isDone && (
                 <div className="studio-ready-view">
                   <div className="selected-photo-card">
@@ -391,6 +406,7 @@ export default function HeroGenerator({
                         type="button"
                         className="btn-link-action"
                         onClick={resetAll}
+                        disabled={isRunning}
                       >
                         Choose another photo
                       </button>
@@ -402,9 +418,19 @@ export default function HeroGenerator({
                       type="button"
                       id="btn-trigger-generate"
                       className="btn btn-primary-dark btn-hero-generate"
+                      disabled={isRunning || cooldownSeconds > 0}
                       onClick={() => generate()}
                     >
-                      <span>🧵 Generate String Art Preview</span>
+                      {isRunning ? (
+                        <>
+                          <span className="spinner-inline"></span>
+                          <span>Generating…</span>
+                        </>
+                      ) : cooldownSeconds > 0 ? (
+                        <span>Please wait ({cooldownSeconds}s)…</span>
+                      ) : (
+                        <span>🧵 Generate String Art Preview</span>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -424,6 +450,7 @@ export default function HeroGenerator({
                         type="button"
                         className="btn btn-secondary-light btn-sm btn-try-another-top"
                         onClick={resetAll}
+                        disabled={isRunning}
                       >
                         ← Try another photo
                       </button>
@@ -449,22 +476,28 @@ export default function HeroGenerator({
                           <span className="card-badge">Original Photo</span>
                           <span className="card-meta">Uploaded Image</span>
                         </div>
-                        <div className="original-photo-wrap">
-                          <img
-                            src={imagePreviewUrl}
-                            alt="Original source portrait"
-                            className="original-photo-img"
-                          />
+                        <div className="original-photo-body">
+                          {imagePreviewUrl ? (
+                            <img
+                              src={imagePreviewUrl}
+                              alt="Original source portrait"
+                              className="original-photo-img"
+                            />
+                          ) : (
+                            <div className="original-photo-empty">Portrait</div>
+                          )}
                         </div>
                       </div>
 
-                      {/* Handcrafted Piece Specifications (Artisan, Non-technical) */}
-                      <div className="product-specs-box">
+                      {/* Product Specifications Card */}
+                      <div className="piece-specs-card">
+                        <h4 className="specs-title">Physical Piece Specifications</h4>
+
                         <div className="spec-row">
-                          <span className="spec-icon">📐</span>
+                          <span className="spec-icon">📏</span>
                           <div className="spec-text">
-                            <strong>50 cm Circular Artboard</strong>
-                            <span>Solid Baltic birch wood with matte finish</span>
+                            <strong>50 cm Circular Diameter</strong>
+                            <span>Solid 12mm Baltic Birchwood board</span>
                           </div>
                         </div>
 
@@ -509,6 +542,7 @@ export default function HeroGenerator({
                           type="button"
                           className="btn btn-primary-dark btn-place-order w-full"
                           onClick={startOrder}
+                          disabled={isRunning}
                         >
                           <span>🛍️ Place Your Order</span>
                         </button>
@@ -523,6 +557,7 @@ export default function HeroGenerator({
                       type="button"
                       className="btn btn-primary-dark btn-place-order btn-large"
                       onClick={startOrder}
+                      disabled={isRunning}
                     >
                       <span>🛍️ Place Your Order — Custom Handcrafted Piece</span>
                     </button>
@@ -531,6 +566,7 @@ export default function HeroGenerator({
                       type="button"
                       className="btn btn-secondary-light btn-try-another-bottom"
                       onClick={resetAll}
+                      disabled={isRunning}
                     >
                       ← Try another photo
                     </button>

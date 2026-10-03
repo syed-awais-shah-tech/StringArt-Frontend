@@ -45,6 +45,8 @@ export default function App() {
     submittedOrder,
     isSubmittingOrder,
     submitOrderError,
+    cooldownSeconds,
+    isGenerating,
     startOrder,
     backToPreview,
     submitOrder,
@@ -115,6 +117,8 @@ export default function App() {
         submittedOrder={submittedOrder}
         isSubmittingOrder={isSubmittingOrder}
         submitOrderError={submitOrderError}
+        cooldownSeconds={cooldownSeconds}
+        isGenerating={isGenerating}
         startOrder={startOrder}
         backToPreview={backToPreview}
         submitOrder={submitOrder}

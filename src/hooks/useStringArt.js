@@ -1,9 +1,16 @@
 /**
  * useStringArt.js
  * Custom hook that manages all state + API communication for the app.
+ * Includes frontend request protection, concurrency locks, request cancellation,
+ * validation, cooldowns, and order idempotency.
  */
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { getApiUrl } from '../config/api.js';
+import {
+  validateImageFile,
+  validateOrderFields,
+  formatUserErrorMessage,
+} from '../utils/validation.js';
 
 const DEFAULT_PARAMS = {
   numNails:          200,
@@ -18,7 +25,7 @@ const DEFAULT_PARAMS = {
   imageSize:         512,
   name:              'myStringArt',
   featureHighlight:  'none',
-  // Thread color palette — first 8 match C++ defaults
+  // Thread color palette — first 8 match algorithm defaults
   colors: [
     [0, 0, 0],
     [255, 255, 255],
@@ -32,21 +39,42 @@ const DEFAULT_PARAMS = {
 };
 
 export function useStringArt() {
-  const [params, setParams]           = useState(DEFAULT_PARAMS);
-  const [imageFile, setImageFile]     = useState(null);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
-  const [status, setStatus]           = useState('idle'); // idle | running | done | error
-  const [error, setError]             = useState(null);
-  const [previewData, setPreviewData] = useState(null);  // { nails, width, height, sequence }
-  const [stats, setStats]             = useState(null);  // { lines, time }
-  const [sequenceText, setSequenceText] = useState(null);
+  const [params, setParams]                     = useState(DEFAULT_PARAMS);
+  const [imageFile, setImageFile]               = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl]   = useState(null);
+  const [status, setStatus]                     = useState('idle'); // idle | running | done | error
+  const [error, setError]                       = useState(null);
+  const [previewData, setPreviewData]           = useState(null);   // { nails, width, height, sequence }
+  const [stats, setStats]                       = useState(null);   // { lines, time }
+  const [sequenceText, setSequenceText]         = useState(null);
   const [sequenceFilename, setSequenceFilename] = useState(null);
-  const [orderDraft, setOrderDraft]   = useState(null);
-  const [viewStep, setViewStep]       = useState('studio'); // 'studio' | 'order-form' | 'order-success'
-  const [submittedOrder, setSubmittedOrder] = useState(null);
+  const [orderDraft, setOrderDraft]             = useState(null);
+  const [viewStep, setViewStep]                 = useState('studio'); // 'studio' | 'order-form' | 'order-success'
+  const [submittedOrder, setSubmittedOrder]     = useState(null);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [submitOrderError, setSubmitOrderError] = useState(null);
-  const abortRef                      = useRef(null);
+  const [cooldownSeconds, setCooldownSeconds]   = useState(0);
+
+  // Synchronous execution guards & controllers
+  const abortRef                                = useRef(null);
+  const isGeneratingRef                         = useRef(false);
+  const isSubmittingRef                         = useRef(false);
+  const orderIdempotencyKeyRef                  = useRef(null);
+  const cooldownTimerRef                        = useRef(null);
+
+  // ── Cooldown Timer Effect ────────────────────────────────────────────────
+  useEffect(() => {
+    if (cooldownSeconds > 0) {
+      cooldownTimerRef.current = setTimeout(() => {
+        setCooldownSeconds((prev) => Math.max(0, prev - 1));
+      }, 1000);
+    }
+    return () => {
+      if (cooldownTimerRef.current) {
+        clearTimeout(cooldownTimerRef.current);
+      }
+    };
+  }, [cooldownSeconds]);
 
   // ── Parameter updater ───────────────────────────────────────────────────
   const setParam = useCallback((key, value) => {
@@ -85,10 +113,15 @@ export function useStringArt() {
     }
   }, []);
 
-  // ── Cancel ────────────────────────────────────────────────────────────────
+  // ── Cancel Request ────────────────────────────────────────────────────────
   const cancel = useCallback(() => {
-    abortRef.current?.abort();
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+    isGeneratingRef.current = false;
     setStatus('idle');
+    setError(null);
   }, []);
 
   // ── Reset / Try Another Photo ─────────────────────────────────────────────
@@ -109,19 +142,36 @@ export function useStringArt() {
     setViewStep('studio');
     setSubmittedOrder(null);
     setIsSubmittingOrder(false);
+    isSubmittingRef.current = false;
     setSubmitOrderError(null);
+    orderIdempotencyKeyRef.current = null; // Fresh idempotency key on new photo
     setStatus('idle');
     setError(null);
   }, [cancel]);
 
-  // ── Core Generate implementation ──────────────────────────────────────────
+  // ── Core Generate Implementation with Request Protection ─────────────────
   const generate = useCallback(async (targetFile = null) => {
-    const fileToProcess = targetFile || imageFile;
-    if (!fileToProcess) {
-      setError('Please upload an image first.');
+    // 1. Prevent overlapping generation requests
+    if (isGeneratingRef.current || status === 'running') {
+      console.warn('[useStringArt] Generation already active. Ignoring repeat call.');
       return;
     }
 
+    const fileToProcess = targetFile || imageFile;
+    if (!fileToProcess) {
+      setError('Please select or upload an image first.');
+      return;
+    }
+
+    // 2. Validate image file format and size (<10MB) before network request
+    const imageCheck = validateImageFile(fileToProcess);
+    if (!imageCheck.valid) {
+      setError(imageCheck.error);
+      return;
+    }
+
+    // Synchronous execution lock
+    isGeneratingRef.current = true;
     setStatus('running');
     setError(null);
     setPreviewData(null);
@@ -132,6 +182,7 @@ export function useStringArt() {
     setSubmittedOrder(null);
     setSubmitOrderError(null);
 
+    // Setup request cancellation controller
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -147,12 +198,18 @@ export function useStringArt() {
         signal: controller.signal,
       });
 
-      if (!response.ok) {
-        const json = await response.json().catch(() => ({}));
-        throw new Error(json.error || `Server error ${response.status}`);
+      let json = null;
+      try {
+        json = await response.json();
+      } catch {
+        json = null;
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(formatUserErrorMessage(null, response.status, json));
+      }
+
+      const data = json || {};
 
       if (data.previewData) {
         setPreviewData(data.previewData);
@@ -163,23 +220,37 @@ export function useStringArt() {
       setSequenceText(data.sequenceText);
       setSequenceFilename(filename);
 
-      // Keep generated sequence internally for admin/order system
+      // Keep generated sequence internally for order checkout
       persistOrderInternally(fileToProcess, data.previewData, data.sequenceText, filename, params);
 
       setStatus('done');
+      // Set short 3-second cooldown to prevent accidental immediate spamming
+      setCooldownSeconds(3);
     } catch (err) {
       if (err.name === 'AbortError') {
+        console.log('[useStringArt] Generation cancelled by user.');
         setStatus('idle');
         return;
       }
-      setError(err.message || 'Generation failed');
+      const message = formatUserErrorMessage(err);
+      setError(message);
       setStatus('error');
+    } finally {
+      isGeneratingRef.current = false;
+      abortRef.current = null;
     }
-  }, [imageFile, params, persistOrderInternally]);
+  }, [imageFile, params, status, persistOrderInternally]);
 
   // ── Image selection & auto-generation ─────────────────────────────────────
   const selectImage = useCallback((file, autoGenerate = false) => {
-    if (!file || !file.type.startsWith('image/')) return;
+    if (!file) return;
+
+    // Validate before setting state
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      setError(validation.error);
+      return;
+    }
 
     setImageFile(file);
     const url = URL.createObjectURL(file);
@@ -207,6 +278,13 @@ export function useStringArt() {
   // ── Customer Order Navigation ─────────────────────────────────────────────
   const startOrder = useCallback(() => {
     setSubmitOrderError(null);
+    // Generate fresh idempotency key when entering the order checkout
+    if (!orderIdempotencyKeyRef.current) {
+      orderIdempotencyKeyRef.current =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `idem_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    }
     setViewStep('order-form');
     // Scroll to the order form smoothly
     const el = document.getElementById('preview-studio');
@@ -219,13 +297,36 @@ export function useStringArt() {
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  // ── Customer Order Submission (Cash on Delivery) ──────────────────────────
+  // ── Customer Order Submission (Cash on Delivery with Idempotency) ──────────
   const submitOrder = useCallback(async (customerData) => {
+    // 1. Prevent double-click duplicate order submissions
+    if (isSubmittingRef.current || isSubmittingOrder) {
+      console.warn('[useStringArt] Order submission already in progress. Ignoring duplicate click.');
+      return;
+    }
+
+    // 2. Validate form fields before network call
+    const fieldCheck = validateOrderFields(customerData);
+    if (!fieldCheck.isValid) {
+      setSubmitOrderError('Please correct the highlighted fields before placing your order.');
+      return;
+    }
+
+    isSubmittingRef.current = true;
     setIsSubmittingOrder(true);
     setSubmitOrderError(null);
 
+    // Reuse existing key for retries; generate one if missing
+    if (!orderIdempotencyKeyRef.current) {
+      orderIdempotencyKeyRef.current =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `idem_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    }
+    const currentIdempotencyKey = orderIdempotencyKeyRef.current;
+
     try {
-      // 1. Get original image data URL
+      // Get original image data URL
       let originalImageData = null;
       if (imageFile) {
         originalImageData = await new Promise((resolve) => {
@@ -236,7 +337,7 @@ export function useStringArt() {
         });
       }
 
-      // 2. Capture preview image from canvas
+      // Capture preview image from canvas
       let previewImageData = null;
       const canvas = document.querySelector('canvas.string-canvas');
       if (canvas) {
@@ -247,7 +348,7 @@ export function useStringArt() {
         }
       }
 
-      // 3. Assemble payload
+      // Assemble payload with idempotency key
       const payload = {
         customer: customerData,
         product: {
@@ -262,19 +363,31 @@ export function useStringArt() {
           totalLines: previewData?.totalLines || stats?.lines || 3000,
           numNails: params.numNails,
         },
+        idempotencyKey: currentIdempotencyKey,
       };
 
       const res = await fetch(getApiUrl('/api/orders'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': currentIdempotencyKey,
+        },
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
 
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to place order.');
+        throw new Error(formatUserErrorMessage(null, res.status, data));
       }
+
+      // Order succeeded: clear current idempotency key so next order gets a fresh key
+      orderIdempotencyKeyRef.current = null;
 
       setSubmittedOrder(data.order);
       setViewStep('order-success');
@@ -288,11 +401,15 @@ export function useStringArt() {
       if (el) el.scrollIntoView({ behavior: 'smooth' });
     } catch (err) {
       console.error('[useStringArt] Order submission error:', err);
-      setSubmitOrderError(err.message || 'Failed to submit order. Please try again.');
+      // NOTE: On error, orderIdempotencyKeyRef is kept unchanged so clicking retry
+      // sends the exact same idempotency key safely!
+      const userMessage = formatUserErrorMessage(err);
+      setSubmitOrderError(userMessage);
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmittingOrder(false);
     }
-  }, [imageFile, sequenceText, previewData, stats, params]);
+  }, [imageFile, sequenceText, previewData, stats, params, isSubmittingOrder]);
 
   return {
     params,
@@ -315,6 +432,8 @@ export function useStringArt() {
     submittedOrder,
     isSubmittingOrder,
     submitOrderError,
+    cooldownSeconds,
+    isGenerating: isGeneratingRef.current || status === 'running',
     startOrder,
     backToPreview,
     submitOrder,

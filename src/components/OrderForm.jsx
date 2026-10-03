@@ -1,15 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { validateOrderFields } from '../utils/validation.js';
 
 /**
  * OrderForm.jsx — Customer Order Form with Cash on Delivery (COD)
- *
- * Fields:
- *   - Full Name (required)
- *   - Email (optional)
- *   - Phone Number (required)
- *   - Address (required)
- *   - City (required)
- *   - Payment Method: Cash on Delivery (only)
+ * Includes double-click prevention, validation, and loading feedback.
  */
 export default function OrderForm({
   imagePreviewUrl,
@@ -29,6 +23,7 @@ export default function OrderForm({
   });
 
   const [errors, setErrors] = useState({});
+  const isSubmittingLocalRef = useRef(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -41,28 +36,33 @@ export default function OrderForm({
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    const newErrors = {};
-    if (!formData.fullName.trim()) {
-      newErrors.fullName = 'Full Name is required.';
-    }
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone Number is required.';
-    }
-    if (!formData.address.trim()) {
-      newErrors.address = 'Delivery Address is required.';
-    }
-    if (!formData.city.trim()) {
-      newErrors.city = 'City is required.';
+    // Prevent double-clicks immediately via synchronous guard
+    if (isSubmitting || isSubmittingLocalRef.current) {
+      return;
     }
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+    // Run client-side validation
+    const { isValid, errors: validationErrors } = validateOrderFields(formData);
+    if (!isValid) {
+      setErrors(validationErrors);
+      // Focus on first error element
+      const firstFieldKey = Object.keys(validationErrors)[0];
+      const el = document.getElementById(`order-${firstFieldKey}`);
+      if (el) el.focus();
       return;
     }
 
     setErrors({});
+    isSubmittingLocalRef.current = true;
     onSubmit(formData);
+
+    // Reset local lock after dispatch
+    setTimeout(() => {
+      isSubmittingLocalRef.current = false;
+    }, 500);
   };
+
+  const isButtonDisabled = Boolean(isSubmitting || isSubmittingLocalRef.current);
 
   return (
     <div className="order-form-container">
@@ -72,7 +72,7 @@ export default function OrderForm({
           type="button"
           className="btn-back-link"
           onClick={onBack}
-          disabled={isSubmitting}
+          disabled={isButtonDisabled}
         >
           ← Back to Preview
         </button>
@@ -112,11 +112,12 @@ export default function OrderForm({
               id="order-fullName"
               name="fullName"
               type="text"
+              maxLength={100}
               className={`form-input ${errors.fullName ? 'has-error' : ''}`}
               placeholder="e.g. Sarah Jenkins"
               value={formData.fullName}
               onChange={handleChange}
-              disabled={isSubmitting}
+              disabled={isButtonDisabled}
             />
             {errors.fullName && (
               <span className="field-error-msg">{errors.fullName}</span>
@@ -135,12 +136,16 @@ export default function OrderForm({
               id="order-email"
               name="email"
               type="email"
-              className="form-input"
+              maxLength={100}
+              className={`form-input ${errors.email ? 'has-error' : ''}`}
               placeholder="e.g. sarah@example.com (for order updates)"
               value={formData.email}
               onChange={handleChange}
-              disabled={isSubmitting}
+              disabled={isButtonDisabled}
             />
+            {errors.email && (
+              <span className="field-error-msg">{errors.email}</span>
+            )}
           </div>
 
           {/* Phone Number */}
@@ -152,11 +157,12 @@ export default function OrderForm({
               id="order-phone"
               name="phone"
               type="tel"
+              maxLength={25}
               className={`form-input ${errors.phone ? 'has-error' : ''}`}
               placeholder="e.g. +44 7911 123456 (for courier delivery)"
               value={formData.phone}
               onChange={handleChange}
-              disabled={isSubmitting}
+              disabled={isButtonDisabled}
             />
             {errors.phone && (
               <span className="field-error-msg">{errors.phone}</span>
@@ -172,11 +178,12 @@ export default function OrderForm({
               id="order-address"
               name="address"
               rows={2}
+              maxLength={250}
               className={`form-textarea ${errors.address ? 'has-error' : ''}`}
               placeholder="House/flat number, building name, and street"
               value={formData.address}
               onChange={handleChange}
-              disabled={isSubmitting}
+              disabled={isButtonDisabled}
             />
             {errors.address && (
               <span className="field-error-msg">{errors.address}</span>
@@ -192,11 +199,12 @@ export default function OrderForm({
               id="order-city"
               name="city"
               type="text"
+              maxLength={100}
               className={`form-input ${errors.city ? 'has-error' : ''}`}
               placeholder="e.g. London"
               value={formData.city}
               onChange={handleChange}
-              disabled={isSubmitting}
+              disabled={isButtonDisabled}
             />
             {errors.city && (
               <span className="field-error-msg">{errors.city}</span>
@@ -235,7 +243,7 @@ export default function OrderForm({
               id="btn-submit-order"
               type="submit"
               className="btn btn-primary-dark btn-large w-full btn-submit-order"
-              disabled={isSubmitting}
+              disabled={isButtonDisabled}
             >
               {isSubmitting ? (
                 <>
