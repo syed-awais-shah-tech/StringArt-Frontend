@@ -22,13 +22,15 @@
   - **Real-Time Preview Simulation**: Live HTML5 canvas rendering of continuous unbroken thread paths across circular wooden boards.
   - **Before/After Transformation Slider**: Visual slider to inspect photo fidelity.
   - **Frictionless Cash on Delivery (COD)**: No customer passwords or registration required.
+  - **Thread Style Selection**: Choose between Black Thread and 8-Color Thread when enabled by store administrators.
   - **Order Confirmation**: Instant receipt with sequential order number (`SA-1001`, etc.).
 
 - **Admin Flow** (`/admin`):
   - **Protected Session Auth**: Only authorized store managers can access `/admin/*`.
   - **Store Overview Dashboard**: Real-time KPI metrics (Total Orders, New, In Production, Shipped).
   - **Orders Management**: Search by order number, customer name, or city with status filter tabs.
-  - **Order Details**: Side-by-side artwork inspection, delivery address, status workflow updater, and direct download of physical loom sequence files (`.txt`).
+  - **Order Details**: Side-by-side artwork inspection, delivery address, thread mode verification, status workflow updater, and direct download of physical loom sequence files (`.txt`).
+  - **Store Settings** (`/admin/settings`): Admin toggle for 8-color thread generation.
 
 ---
 

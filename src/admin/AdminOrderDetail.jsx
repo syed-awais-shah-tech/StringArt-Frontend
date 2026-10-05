@@ -226,6 +226,9 @@ export default function AdminOrderDetail({ orderId }) {
           <span className={`status-badge ${getPaymentStatusBadgeClass(order.paymentStatus)}`}>
             Payment: {order.paymentStatus}
           </span>
+          <span className={`status-badge ${(order.threadMode === 'eight_color' || order.thread_mode === 'eight_color') ? 'badge-purple' : 'badge-gray'}`}>
+            {(order.threadMode === 'eight_color' || order.thread_mode === 'eight_color') ? '8-Color Thread' : 'Black Thread'}
+          </span>
         </div>
 
         <div className="admin-order-meta-date">
@@ -404,7 +407,8 @@ export default function AdminOrderDetail({ orderId }) {
                 <div className="product-attributes">
                   <span>Size: 480mm Round Board</span> &bull;{' '}
                   <span>Nails: 200–250 Pin Loom</span> &bull;{' '}
-                  <span>Lines: ~3,000 Monofilament Threads</span>
+                  <span>Lines: ~3,000 Monofilament Threads</span> &bull;{' '}
+                  <span>Thread Style: <strong>{(order.threadMode === 'eight_color' || order.thread_mode === 'eight_color') ? '8-Color Thread' : 'Black Thread'}</strong></span>
                 </div>
               </div>
               <div className="product-pricing">

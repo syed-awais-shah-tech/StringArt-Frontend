@@ -250,6 +250,11 @@ export default function AdminOrders() {
                   >
                     <td>
                       <span className="order-number-tag">{ord.orderNumber}</span>
+                      {(ord.threadMode === 'eight_color' || ord.thread_mode === 'eight_color') ? (
+                        <span className="badge-pill" style={{ display: 'inline-block', fontSize: '10.5px', marginTop: '4px', background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe', padding: '1px 6px' }}>8-Color</span>
+                      ) : (
+                        <span className="badge-pill" style={{ display: 'inline-block', fontSize: '10.5px', marginTop: '4px', background: '#f4f4f5', color: '#71717a', border: '1px solid #e4e4e7', padding: '1px 6px' }}>Black</span>
+                      )}
                     </td>
                     <td className="text-muted">{formatDate(ord.createdAt)}</td>
                     <td>
