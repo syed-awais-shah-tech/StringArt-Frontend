@@ -50,6 +50,9 @@ export default function App() {
     startOrder,
     backToPreview,
     submitOrder,
+    eightColorEnabled,
+    threadMode,
+    setThreadMode,
   } = useStringArt();
 
   const [toasts, setToasts] = useState([]);
@@ -122,6 +125,9 @@ export default function App() {
         startOrder={startOrder}
         backToPreview={backToPreview}
         submitOrder={submitOrder}
+        eightColorEnabled={eightColorEnabled}
+        threadMode={threadMode}
+        setThreadMode={setThreadMode}
       />
 
       {/* 3. How It Works Section */}

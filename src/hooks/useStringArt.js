@@ -54,6 +54,9 @@ export function useStringArt() {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [submitOrderError, setSubmitOrderError] = useState(null);
   const [cooldownSeconds, setCooldownSeconds]   = useState(0);
+  const [eightColorEnabled, setEightColorEnabled] = useState(false);
+  const [threadMode, setThreadMode]             = useState('black_only'); // 'black_only' | 'eight_color'
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
   // Synchronous execution guards & controllers
   const abortRef                                = useRef(null);
@@ -76,13 +79,55 @@ export function useStringArt() {
     };
   }, [cooldownSeconds]);
 
+  // ── Fetch Public Generation Settings ─────────────────────────────────────
+  const fetchGenerationSettings = useCallback(async () => {
+    try {
+      setIsLoadingSettings(true);
+      const res = await fetch(getApiUrl('/api/settings/generation'));
+      if (!res.ok) {
+        throw new Error('Failed to fetch public generation settings');
+      }
+      const data = await res.json();
+      const isEnabled = Boolean(
+        data.eightColorEnabled ??
+        data.eight_color_enabled
+      );
+      setEightColorEnabled(isEnabled);
+      // Fallback safely to black_only if disabled
+      if (!isEnabled) {
+        setThreadMode('black_only');
+      }
+      return isEnabled;
+    } catch (err) {
+      console.warn('[useStringArt] Public settings fetch error, defaulting to black thread:', err.message);
+      setEightColorEnabled(false);
+      setThreadMode('black_only');
+      return false;
+    } finally {
+      setIsLoadingSettings(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGenerationSettings();
+  }, [fetchGenerationSettings]);
+
+  // ── Safe Thread Mode Switcher ────────────────────────────────────────────
+  const setThreadModeSafe = useCallback((mode) => {
+    if (mode === 'eight_color' && eightColorEnabled) {
+      setThreadMode('eight_color');
+    } else {
+      setThreadMode('black_only');
+    }
+  }, [eightColorEnabled]);
+
   // ── Parameter updater ───────────────────────────────────────────────────
   const setParam = useCallback((key, value) => {
     setParams((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   // ── Internal helper to save order package for admin / checkout system ───
-  const persistOrderInternally = useCallback((file, previewPayload, seqText, filename, currentParams) => {
+  const persistOrderInternally = useCallback((file, previewPayload, seqText, filename, currentParams, effectiveMode = 'black_only') => {
     try {
       const orderId = `SA-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
       const draft = {
@@ -91,6 +136,7 @@ export function useStringArt() {
         imageName: file?.name || 'custom-portrait.png',
         filename: filename || 'sequence.txt',
         sequenceText: seqText,
+        threadMode: effectiveMode,
         totalLines: previewPayload?.totalLines || currentParams?.maxIterations || 3000,
         numNails: currentParams?.numNails || 200,
         boardDiameterMm: currentParams?.boardDiameterMm || 480,
@@ -186,10 +232,21 @@ export function useStringArt() {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // Determine effective thread mode (client-side safety check)
+    const effectiveThreadMode = (eightColorEnabled && threadMode === 'eight_color')
+      ? 'eight_color'
+      : 'black_only';
+
     try {
       const formData = new FormData();
       formData.append('image', fileToProcess);
-      formData.append('params', JSON.stringify(params));
+      formData.append('params', JSON.stringify({
+        ...params,
+        threadMode: effectiveThreadMode,
+        thread_mode: effectiveThreadMode,
+      }));
+      formData.append('threadMode', effectiveThreadMode);
+      formData.append('thread_mode', effectiveThreadMode);
 
       const t0 = Date.now();
       const response = await fetch(getApiUrl('/api/generate'), {
@@ -220,8 +277,11 @@ export function useStringArt() {
       setSequenceText(data.sequenceText);
       setSequenceFilename(filename);
 
+      // Server returns the authoritative thread mode
+      const authoritativeMode = data.threadMode || data.thread_mode || effectiveThreadMode;
+
       // Keep generated sequence internally for order checkout
-      persistOrderInternally(fileToProcess, data.previewData, data.sequenceText, filename, params);
+      persistOrderInternally(fileToProcess, data.previewData, data.sequenceText, filename, params, authoritativeMode);
 
       setStatus('done');
       // Set short 3-second cooldown to prevent accidental immediate spamming
@@ -239,7 +299,7 @@ export function useStringArt() {
       isGeneratingRef.current = false;
       abortRef.current = null;
     }
-  }, [imageFile, params, status, persistOrderInternally]);
+  }, [imageFile, params, status, eightColorEnabled, threadMode, persistOrderInternally]);
 
   // ── Image selection & auto-generation ─────────────────────────────────────
   const selectImage = useCallback((file, autoGenerate = false) => {
@@ -348,7 +408,8 @@ export function useStringArt() {
         }
       }
 
-      // Assemble payload with idempotency key
+      // Assemble payload with idempotency key and authoritative thread mode
+      const effectiveOrderMode = orderDraft?.threadMode || (eightColorEnabled && threadMode === 'eight_color' ? 'eight_color' : 'black_only');
       const payload = {
         customer: customerData,
         product: {
@@ -356,6 +417,8 @@ export function useStringArt() {
           price: 175,
           currency: 'GBP',
         },
+        threadMode: effectiveOrderMode,
+        thread_mode: effectiveOrderMode,
         originalImageData,
         previewImageData,
         sequenceText,
@@ -438,5 +501,10 @@ export function useStringArt() {
     backToPreview,
     submitOrder,
     DEFAULT_PARAMS,
+    eightColorEnabled,
+    threadMode,
+    setThreadMode: setThreadModeSafe,
+    refreshGenerationSettings: fetchGenerationSettings,
+    isLoadingSettings,
   };
 }

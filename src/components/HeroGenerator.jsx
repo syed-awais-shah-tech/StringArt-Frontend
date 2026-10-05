@@ -33,6 +33,9 @@ export default function HeroGenerator({
   startOrder,
   backToPreview,
   submitOrder,
+  eightColorEnabled = false,
+  threadMode = 'black_only',
+  setThreadMode,
 }) {
   const fileInputRef = useRef(null);
 
@@ -264,6 +267,50 @@ export default function HeroGenerator({
 
                   {/* Upload Drop Zone */}
                   <div className="studio-upload-box">
+                    {/* Thread Style Selection (when Admin has 8-color enabled) */}
+                    {eightColorEnabled && (
+                      <div className="thread-style-section" id="thread-style-selector">
+                        <div className="thread-style-header">
+                          <span className="thread-style-title">Thread Style</span>
+                        </div>
+                        <div className="thread-style-group" role="radiogroup" aria-label="Thread Style">
+                          <label
+                            className={`thread-style-option ${threadMode === 'black_only' ? 'selected' : ''}`}
+                            htmlFor="thread-mode-black"
+                          >
+                            <input
+                              type="radio"
+                              id="thread-mode-black"
+                              name="threadStyle"
+                              value="black_only"
+                              checked={threadMode === 'black_only'}
+                              onChange={() => setThreadMode && setThreadMode('black_only')}
+                              disabled={isRunning}
+                            />
+                            <span className="thread-radio-custom" />
+                            <span className="thread-style-text">Black Thread</span>
+                          </label>
+
+                          <label
+                            className={`thread-style-option ${threadMode === 'eight_color' ? 'selected' : ''}`}
+                            htmlFor="thread-mode-eight"
+                          >
+                            <input
+                              type="radio"
+                              id="thread-mode-eight"
+                              name="threadStyle"
+                              value="eight_color"
+                              checked={threadMode === 'eight_color'}
+                              onChange={() => setThreadMode && setThreadMode('eight_color')}
+                              disabled={isRunning}
+                            />
+                            <span className="thread-radio-custom" />
+                            <span className="thread-style-text">8-Color Thread</span>
+                          </label>
+                        </div>
+                      </div>
+                    )}
+
                     <input
                       ref={fileInputRef}
                       id="hero-file-input"
@@ -413,6 +460,50 @@ export default function HeroGenerator({
                     </div>
                   </div>
 
+                  {/* Thread Style Selection (when Admin has 8-color enabled) */}
+                  {eightColorEnabled && (
+                    <div className="thread-style-section ready-style-section">
+                      <div className="thread-style-header">
+                        <span className="thread-style-title">Thread Style</span>
+                      </div>
+                      <div className="thread-style-group" role="radiogroup" aria-label="Thread Style">
+                        <label
+                          className={`thread-style-option ${threadMode === 'black_only' ? 'selected' : ''}`}
+                          htmlFor="ready-thread-mode-black"
+                        >
+                          <input
+                            type="radio"
+                            id="ready-thread-mode-black"
+                            name="readyThreadStyle"
+                            value="black_only"
+                            checked={threadMode === 'black_only'}
+                            onChange={() => setThreadMode && setThreadMode('black_only')}
+                            disabled={isRunning}
+                          />
+                          <span className="thread-radio-custom" />
+                          <span className="thread-style-text">Black Thread</span>
+                        </label>
+
+                        <label
+                          className={`thread-style-option ${threadMode === 'eight_color' ? 'selected' : ''}`}
+                          htmlFor="ready-thread-mode-eight"
+                        >
+                          <input
+                            type="radio"
+                            id="ready-thread-mode-eight"
+                            name="readyThreadStyle"
+                            value="eight_color"
+                            checked={threadMode === 'eight_color'}
+                            onChange={() => setThreadMode && setThreadMode('eight_color')}
+                            disabled={isRunning}
+                          />
+                          <span className="thread-radio-custom" />
+                          <span className="thread-style-text">8-Color Thread</span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="ready-action-box">
                     <button
                       type="button"
@@ -504,8 +595,14 @@ export default function HeroGenerator({
                         <div className="spec-row">
                           <span className="spec-icon">🧵</span>
                           <div className="spec-text">
-                            <strong>100% Tensioned Thread</strong>
-                            <span>Over 1.5 km of continuous unbroken thread</span>
+                            <strong>
+                              {threadMode === 'eight_color' ? '8-Color Tensioned Thread' : '100% Tensioned Thread'}
+                            </strong>
+                            <span>
+                              {threadMode === 'eight_color'
+                                ? 'Woven with vibrant 8-color artisanal thread sequence'
+                                : 'Over 1.5 km of continuous unbroken thread'}
+                            </span>
                           </div>
                         </div>
 
