@@ -1475,6 +1475,120 @@
   line-height: 1.5;
 }
 
+/* ── Generation Settings & Toggle ─────────────────────────────────────────── */
+.generation-setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 8px 0;
+  flex-wrap: wrap;
+}
+
+.generation-setting-info {
+  flex: 1;
+  min-width: 260px;
+}
+
+.generation-setting-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--admin-text-main);
+  margin: 0 0 6px 0;
+}
+
+.generation-setting-desc {
+  font-size: 14px;
+  color: var(--admin-text-subdued);
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+}
+
+.generation-setting-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.generation-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.generation-status-badge.status-on {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.generation-status-badge.status-off {
+  background: #f1f2f4;
+  color: #6d7175;
+  border: 1px solid #e4e5e7;
+}
+
+.generation-status-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--admin-text-subdued);
+}
+
+.generation-setting-action {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Mobile-responsive Accessible Toggle Switch */
+.admin-toggle-switch {
+  width: 54px;
+  height: 30px;
+  border-radius: 15px;
+  background-color: #c9cccf;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  position: relative;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+  outline: none;
+}
+
+.admin-toggle-switch:focus-visible {
+  box-shadow: 0 0 0 3px rgba(0, 128, 96, 0.35);
+}
+
+.admin-toggle-switch.is-checked {
+  background-color: var(--admin-primary);
+}
+
+.admin-toggle-switch:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.admin-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admin-toggle-switch.is-checked .admin-toggle-thumb {
+  transform: translateX(24px);
+}
+
+
 /* ── Animations ───────────────────────────────────────────────────────────── */
 @keyframes spin {
   to { transform: rotate(360deg); }

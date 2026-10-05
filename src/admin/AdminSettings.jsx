@@ -1,8 +1,101 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAdmin } from './AdminContext.jsx';
 
 export default function AdminSettings() {
   const { admin, authFetch } = useAdmin();
+
+  // Generation Settings state
+  const [eightColorEnabled, setEightColorEnabled] = useState(false);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+  const [settingsSuccess, setSettingsSuccess] = useState('');
+
+  // Load current settings on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function loadSettings() {
+      try {
+        setIsLoadingSettings(true);
+        setSettingsError('');
+        const res = await authFetch('/api/admin/settings');
+        if (!res.ok) {
+          throw new Error('Failed to load generation settings');
+        }
+        const data = await res.json();
+        if (isMounted) {
+          const enabled = Boolean(
+            data.eight_color_enabled ??
+            data.eightColorEnabled ??
+            data.settings?.eight_color_enabled ??
+            data.settings?.eightColorEnabled
+          );
+          setEightColorEnabled(enabled);
+        }
+      } catch (err) {
+        console.error('Failed to load store settings:', err);
+        if (isMounted) {
+          setSettingsError(err.message || 'Failed to retrieve generation settings.');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingSettings(false);
+        }
+      }
+    }
+
+    loadSettings();
+    return () => {
+      isMounted = false;
+    };
+  }, [authFetch]);
+
+  // Handle toggle change
+  const handleToggleEightColor = async () => {
+    if (isSavingSettings || isLoadingSettings) return;
+
+    const previousValue = eightColorEnabled;
+    const nextValue = !eightColorEnabled;
+
+    setSettingsError('');
+    setSettingsSuccess('');
+    setIsSavingSettings(true);
+    setEightColorEnabled(nextValue);
+
+    try {
+      const res = await authFetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eight_color_enabled: nextValue }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update generation settings');
+      }
+
+      const confirmedValue = Boolean(
+        data.eight_color_enabled ??
+        data.eightColorEnabled ??
+        data.settings?.eight_color_enabled ??
+        data.settings?.eightColorEnabled ??
+        nextValue
+      );
+
+      setEightColorEnabled(confirmedValue);
+      setSettingsSuccess(
+        confirmedValue
+          ? '8-color generation enabled successfully.'
+          : '8-color generation disabled successfully.'
+      );
+    } catch (err) {
+      console.error('Failed to save generation settings:', err);
+      setEightColorEnabled(previousValue);
+      setSettingsError(err.message || 'Failed to save generation settings. Please try again.');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
 
   // Change Password state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -73,6 +166,67 @@ export default function AdminSettings() {
           <p className="admin-page-desc">
             Store configuration, workshop parameters, and administrative controls.
           </p>
+        </div>
+      </div>
+
+      {/* Generation Settings Card */}
+      <div className="admin-card" style={{ marginBottom: '24px' }}>
+        <div className="admin-card-header">
+          <h2 className="admin-card-title">Generation Settings</h2>
+        </div>
+        <div className="admin-settings-section">
+          {settingsError && (
+            <div className="admin-alert admin-alert-danger" role="alert">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span>{settingsError}</span>
+            </div>
+          )}
+
+          {settingsSuccess && (
+            <div className="admin-alert admin-alert-success" role="alert">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              <span>{settingsSuccess}</span>
+            </div>
+          )}
+
+          <div className="generation-setting-item">
+            <div className="generation-setting-info">
+              <h3 className="generation-setting-title">8-Color Thread Generation</h3>
+              <p className="generation-setting-desc">
+                Allow customers to choose between black thread and 8-color thread generation.
+              </p>
+              <div className="generation-setting-status">
+                <span className={`generation-status-badge ${eightColorEnabled ? 'status-on' : 'status-off'}`}>
+                  {eightColorEnabled ? 'ON' : 'OFF'}
+                </span>
+                <span className="generation-status-text">
+                  {eightColorEnabled ? '8-color generation enabled' : '8-color generation disabled'}
+                </span>
+              </div>
+            </div>
+
+            <div className="generation-setting-action">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={eightColorEnabled}
+                aria-label="Toggle 8-color thread generation"
+                id="eight-color-toggle"
+                className={`admin-toggle-switch ${eightColorEnabled ? 'is-checked' : ''}`}
+                disabled={isSavingSettings || isLoadingSettings}
+                onClick={handleToggleEightColor}
+              >
+                <span className="admin-toggle-thumb" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
